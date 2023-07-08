@@ -1,4 +1,4 @@
-# Dynamic Size Item scroll inside flatlist with the only faltlist's basic animation
+# Synced flat lists showcase example
 
 - Install deps : `yarn`
 - Run the app: `expo start`
