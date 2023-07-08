@@ -1,217 +1,141 @@
-import { Entypo, Feather } from '@expo/vector-icons';
-import { faker } from '@faker-js/faker';
 import * as React from 'react';
 import {
-  Dimensions,
+  StatusBar,
   FlatList,
+  Image,
   Text,
-  TouchableOpacity,
   View,
+  Dimensions,
+  StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
+import { api_key } from './config/config';
 
+const API_KEY = api_key;
+
+/** pexels.com is just used to fetch some random images just for the showcase
+ * Read the documentation in pexels.com on how you can request for an api key
+ **/
+const API_URL =
+  'https://api.pexels.com/v1/search?query=nature&orientation=portrait&size=small&per_page=20';
+
+// width & height of the screen
 const { width, height } = Dimensions.get('screen');
 
-faker.seed(10);
+// image size of the small flat list
+const IMAGE_SIZE = 80;
 
-const data = [...Array(20).keys()].map(() => ({
-  key: faker.string.uuid(),
-  job: 'John Gkouziokas',
-}));
-
-const _colors = {
-  active: `#FCD259ff`,
-  inactive: `#FCD25900`,
-};
 const _spacing = 10;
 
-export default function UberEats() {
-  // ref of flat list to control index
-  const ref = React.useRef<FlatList>(null);
+const fetchImagesFromPexels = async () => {
+  const data = await fetch(API_URL, {
+    headers: {
+      Authorization: API_KEY,
+    },
+  });
 
-  // state to control index
-  const [index, setIndex] = React.useState(0);
+  const { photos } = await data.json();
+  return photos;
+};
 
-  // state to control view position
-  const [viewPosition, setViewPosition] = React.useState(0);
+export default () => {
+  const topFlatListRef = React.useRef<FlatList>(null);
+  const bottomFlatListRef = React.useRef<FlatList>(null);
+  const [images, setImages] = React.useState(null);
+  const [activeIndex, setActiveIndex] = React.useState(0);
 
   React.useEffect(() => {
-    ref.current?.scrollToIndex({
-      index,
+    let images;
+    (async () => {
+      images = await fetchImagesFromPexels();
+      setImages(images);
+    })();
+  }, []);
+
+  /**
+   * Function that is called onMomentumScrollEnd of the
+   * topFlatlist and on onPress of the bottom flatlist to set the state of the active index to current
+   * index and to scroll the top flatlist to current index if it's called from the onPress of the bottom one
+   * @param index | The current index that is calculated either by event.nativeEvent.offset.x for the top flatlist
+   * or from bottom flat list index
+   */
+  const scrollToActiveIndex = index => {
+    topFlatListRef.current?.scrollToOffset({
+      offset: width * index,
       animated: true,
-      viewPosition,
-      viewOffset: viewPosition === 0.5 || viewPosition === 1 ? 0 : _spacing,
     });
-  }, [index, viewPosition]);
-
-  // handle left arrow on press
-  const handleLeftArrowPress = () => {
-    if (index === 0) {
-      return;
-    }
-    setIndex(index - 1);
+    setActiveIndex(index);
   };
 
-  // handle rightw arrow on press
-  const handleRightArrowPress = () => {
-    if (index === data.length - 1) {
-      return;
-    }
-    setIndex(index + 1);
-  };
+  React.useEffect(() => {
+    bottomFlatListRef.current?.scrollToIndex({
+      index: activeIndex,
+      viewPosition: 0.5,
+      animated: true,
+    });
+  }, [activeIndex]);
 
+  if (!images) {
+    return <Text>No images to show</Text>;
+  }
   return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+    <View style={{ flex: 1, backgroundColor: 'black' }}>
+      <StatusBar hidden />
       <FlatList
-        ref={ref}
-        style={{ flexGrow: 0 }}
-        initialScrollIndex={index}
-        data={data}
-        keyExtractor={item => item.key}
-        contentContainerStyle={{ paddingLeft: _spacing }}
-        showsHorizontalScrollIndicator={false}
+        ref={topFlatListRef}
+        data={images}
+        keyExtractor={item => item.id.toString()}
         horizontal
-        renderItem={({ item, index: fIndex }) => {
+        showsHorizontalScrollIndicator={false}
+        pagingEnabled
+        onMomentumScrollEnd={event => {
+          scrollToActiveIndex(
+            Math.floor(event.nativeEvent.contentOffset.x / width),
+          );
+        }}
+        renderItem={({ item, index: topFlatListIndex }) => {
+          return (
+            <View style={{ width, height }}>
+              <Image
+                source={{ uri: item.src.portrait }}
+                style={[StyleSheet.absoluteFillObject]}
+              ></Image>
+            </View>
+          );
+        }}
+      />
+      <FlatList
+        ref={bottomFlatListRef}
+        data={images}
+        keyExtractor={item => item.id.toString()}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: _spacing }}
+        style={{ position: 'absolute', bottom: IMAGE_SIZE }}
+        renderItem={({ item, index: secondFlatListIndex }) => {
           return (
             <TouchableOpacity
-              onPress={() => {
-                setIndex(fIndex);
-              }}
+              activeOpacity={0.5}
+              onPress={event => scrollToActiveIndex(secondFlatListIndex)}
             >
-              <View
+              <Image
+                source={{ uri: item.src.portrait }}
                 style={{
-                  marginRight: _spacing,
-                  padding: _spacing,
-                  borderWidth: 2,
-                  borderColor: _colors.active,
+                  width: IMAGE_SIZE,
+                  height: IMAGE_SIZE,
                   borderRadius: 12,
-                  backgroundColor:
-                    fIndex === index ? _colors.active : _colors.inactive,
+                  marginRight: _spacing,
+                  borderWidth: 2,
+                  borderColor:
+                    activeIndex === secondFlatListIndex
+                      ? 'white'
+                      : 'transparent',
                 }}
-              >
-                <Text style={{ color: '#36303F', fontWeight: '700' }}>
-                  {item.job}
-                </Text>
-              </View>
+              />
             </TouchableOpacity>
           );
         }}
       />
-      <View
-        style={{
-          alignItems: 'center',
-          flexDirection: 'row',
-          marginTop: _spacing * 10,
-        }}
-      >
-        <View style={{ alignItems: 'center' }}>
-          <Text
-            style={{
-              color: '#36303F',
-              fontWeight: '700',
-              marginBottom: _spacing,
-            }}
-          >
-            Scroll position
-          </Text>
-          <View
-            style={{
-              flexDirection: 'row',
-              width: width / 2,
-              justifyContent: 'center',
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => {
-                setViewPosition(0);
-              }}
-            >
-              <View
-                style={{
-                  padding: _spacing,
-                  backgroundColor: '#FCD259',
-                  borderRadius: _spacing,
-                  marginRight: _spacing,
-                }}
-              >
-                <Entypo name="align-left" size={24} color="#36303F" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                setViewPosition(0.5);
-              }}
-            >
-              <View
-                style={{
-                  padding: _spacing,
-                  backgroundColor: '#FCD259',
-                  borderRadius: _spacing,
-                  marginRight: _spacing,
-                }}
-              >
-                <Entypo
-                  name="align-horizontal-middle"
-                  size={24}
-                  color="#36303F"
-                />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                setViewPosition(1);
-              }}
-            >
-              <View
-                style={{
-                  padding: _spacing,
-                  backgroundColor: '#FCD259',
-                  borderRadius: _spacing,
-                }}
-              >
-                <Entypo name="align-right" size={24} color="#36303F" />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-        <View style={{ alignItems: 'center' }}>
-          <Text
-            style={{ color: '#36303F', fontWeight: '700', marginBottom: 10 }}
-          >
-            Navigation
-          </Text>
-          <View
-            style={{
-              flexDirection: 'row',
-              width: width / 2,
-              justifyContent: 'center',
-            }}
-          >
-            <TouchableOpacity onPress={handleLeftArrowPress}>
-              <View
-                style={{
-                  padding: _spacing,
-                  backgroundColor: '#FCD259',
-                  borderRadius: _spacing,
-                  marginRight: _spacing,
-                }}
-              >
-                <Feather name="arrow-left" size={24} color="#36303F" />
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleRightArrowPress}>
-              <View
-                style={{
-                  padding: _spacing,
-                  backgroundColor: '#FCD259',
-                  borderRadius: _spacing,
-                }}
-              >
-                <Feather name="arrow-right" size={24} color="#36303F" />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
     </View>
   );
-}
+};
